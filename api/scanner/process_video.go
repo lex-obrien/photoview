@@ -49,76 +49,74 @@ func processVideo(tx *gorm.DB, mediaData *EncodeMediaData, videoCachePath *strin
 		return false, errors.Wrap(err, "error getting video content type")
 	}
 
-	if !SkipVideoTranscoding {
-		if videoOriginalURL == nil && videoType.isWebCompatible() {
-			didProcess = true
+	if videoOriginalURL == nil && (videoType.isWebCompatible() || SkipVideoTranscoding) {
+		didProcess = true
 
-			origVideoPath := video.Path
-			videoMediaName := generateUniqueMediaName(video.Path)
+		origVideoPath := video.Path
+		videoMediaName := generateUniqueMediaName(video.Path)
 
-			webMetadata, err := readVideoStreamMetadata(origVideoPath)
-			if err != nil {
-				return false, errors.Wrapf(err, "failed to read metadata for original video (%s)", video.Title)
-			}
-
-			fileStats, err := os.Stat(origVideoPath)
-			if err != nil {
-				return false, errors.Wrap(err, "reading file stats of original video")
-			}
-
-			mediaURL := models.MediaURL{
-				MediaID:     video.ID,
-				MediaName:   videoMediaName,
-				Width:       webMetadata.Width,
-				Height:      webMetadata.Height,
-				Purpose:     models.MediaOriginal,
-				ContentType: string(*videoType),
-				FileSize:    fileStats.Size(),
-			}
-
-			if err := tx.Create(&mediaURL).Error; err != nil {
-				return false, errors.Wrapf(err, "failed to insert original video into database (%s)", video.Title)
-			}
+		webMetadata, err := readVideoStreamMetadata(origVideoPath)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to read metadata for original video (%s)", video.Title)
 		}
 
-		if videoWebURL == nil && !videoType.isWebCompatible() {
-			didProcess = true
+		fileStats, err := os.Stat(origVideoPath)
+		if err != nil {
+			return false, errors.Wrap(err, "reading file stats of original video")
+		}
 
-			web_video_name := fmt.Sprintf("web_video_%s_%s", path.Base(video.Path), utils.GenerateToken())
-			web_video_name = strings.ReplaceAll(web_video_name, ".", "_")
-			web_video_name = strings.ReplaceAll(web_video_name, " ", "_")
-			web_video_name = web_video_name + ".mp4"
+		mediaURL := models.MediaURL{
+			MediaID:     video.ID,
+			MediaName:   videoMediaName,
+			Width:       webMetadata.Width,
+			Height:      webMetadata.Height,
+			Purpose:     models.MediaOriginal,
+			ContentType: string(*videoType),
+			FileSize:    fileStats.Size(),
+		}
 
-			webVideoPath := path.Join(*videoCachePath, web_video_name)
+		if err := tx.Create(&mediaURL).Error; err != nil {
+			return false, errors.Wrapf(err, "failed to insert original video into database (%s)", video.Title)
+		}
+	}
 
-			err = FfmpegCli.EncodeMp4(video.Path, webVideoPath)
-			if err != nil {
-				return false, errors.Wrapf(err, "could not encode mp4 video (%s)", video.Path)
-			}
+	if !SkipVideoTranscoding && videoWebURL == nil && !videoType.isWebCompatible() {
+		didProcess = true
 
-			webMetadata, err := readVideoStreamMetadata(webVideoPath)
-			if err != nil {
-				return false, errors.Wrapf(err, "failed to read metadata for encoded web-video (%s)", video.Title)
-			}
+		web_video_name := fmt.Sprintf("web_video_%s_%s", path.Base(video.Path), utils.GenerateToken())
+		web_video_name = strings.ReplaceAll(web_video_name, ".", "_")
+		web_video_name = strings.ReplaceAll(web_video_name, " ", "_")
+		web_video_name = web_video_name + ".mp4"
 
-			fileStats, err := os.Stat(webVideoPath)
-			if err != nil {
-				return false, errors.Wrap(err, "reading file stats of web-optimized video")
-			}
+		webVideoPath := path.Join(*videoCachePath, web_video_name)
 
-			mediaURL := models.MediaURL{
-				MediaID:     video.ID,
-				MediaName:   web_video_name,
-				Width:       webMetadata.Width,
-				Height:      webMetadata.Height,
-				Purpose:     models.VideoWeb,
-				ContentType: "video/mp4",
-				FileSize:    fileStats.Size(),
-			}
+		err = FfmpegCli.EncodeMp4(video.Path, webVideoPath)
+		if err != nil {
+			return false, errors.Wrapf(err, "could not encode mp4 video (%s)", video.Path)
+		}
 
-			if err := tx.Create(&mediaURL).Error; err != nil {
-				return false, errors.Wrapf(err, "failed to insert encoded web-video into database (%s)", video.Title)
-			}
+		webMetadata, err := readVideoStreamMetadata(webVideoPath)
+		if err != nil {
+			return false, errors.Wrapf(err, "failed to read metadata for encoded web-video (%s)", video.Title)
+		}
+
+		fileStats, err := os.Stat(webVideoPath)
+		if err != nil {
+			return false, errors.Wrap(err, "reading file stats of web-optimized video")
+		}
+
+		mediaURL := models.MediaURL{
+			MediaID:     video.ID,
+			MediaName:   web_video_name,
+			Width:       webMetadata.Width,
+			Height:      webMetadata.Height,
+			Purpose:     models.VideoWeb,
+			ContentType: "video/mp4",
+			FileSize:    fileStats.Size(),
+		}
+
+		if err := tx.Create(&mediaURL).Error; err != nil {
+			return false, errors.Wrapf(err, "failed to insert encoded web-video into database (%s)", video.Title)
 		}
 	}
 
