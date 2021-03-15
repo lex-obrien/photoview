@@ -29,6 +29,11 @@ const (
 	EnvSqlitePath     EnvironmentVariable = "PHOTOVIEW_SQLITE_PATH"
 )
 
+// Scanner related
+const (
+	EnvDisableVideoTranscoding EnvironmentVariable = "PHOTOVIEW_DISABLE_VIDEO_TRANSCODING"
+)
+
 // GetName returns the name of the environment variable itself
 func (v EnvironmentVariable) GetName() string {
 	return string(v)
@@ -39,15 +44,20 @@ func (v EnvironmentVariable) GetValue() string {
 	return os.Getenv(string(v))
 }
 
+// GetBool returns the value of the environment
+func (v EnvironmentVariable) GetAsBool() bool {
+	return (os.Getenv(string(v)) == "1")
+}
+
 // ShouldServeUI whether or not the "serve ui" option is enabled
 func ShouldServeUI() bool {
-	return EnvServeUI.GetValue() == "1"
+	return EnvServeUI.GetAsBool()
 }
 
 // DevelopmentMode describes whether or not the server is running in development mode,
 // and should thus print debug informations and enable other features related to developing.
 func DevelopmentMode() bool {
-	return EnvDevelopmentMode.GetValue() == "1"
+	return EnvDevelopmentMode.GetAsBool()
 }
 
 // UIPath returns the value from where the static UI files are located if SERVE_UI=1

@@ -45,6 +45,9 @@ func main() {
 		log.Panicf("Could not migrate database: %s\n", err)
 	}
 
+	//configure scanner global optons
+	scanner.SkipVideoTranscoding = utils.EnvDisableVideoTranscoding.GetAsBool()
+
 	if err := scanner.InitializeScannerQueue(db); err != nil {
 		log.Panicf("Could not initialize scanner queue: %s\n", err)
 	}
